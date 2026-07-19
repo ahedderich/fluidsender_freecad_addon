@@ -15,7 +15,29 @@ The goal of this addon is to close that loop from inside FreeCAD:
 
 This addon is **FreeCAD-side only**. The receiving HTTP API on the FluidSender server (a new Nuxt server route for third-party file uploads) is tracked separately as [fluidSender#63 — "Add API Endpoint for third party file upload options"](https://github.com/ahedderich/fluidSender/issues/63) and is being built on the `feat/third-party-file-upload-api` branch of the `fluidSender` repo. The two projects should agree on a small, versioned upload API contract (endpoint path, auth, payload shape, response) but otherwise release independently.
 
-This document captures the research done to evaluate feasibility *before* any code was written. Treat it as background/context for kickstarting the addon repo, not as a finished design.
+This document originally captured the research done to evaluate feasibility *before* any code was written. That implementation now exists — see "Implementation Status" below — but the research and open questions are kept as-is beneath it, since they explain the *why* behind the choices the code makes.
+
+## Implementation Status (as of 2026-07-19)
+
+The addon described below has been built and is working end-to-end, confirmed
+against a real FreeCAD 1.1.1 install on macOS: config, post-process dialog,
+CAM toolbar injection with a fallback workbench, and upload all function.
+Full architecture, usage instructions, and a detailed list of known
+limitations live in `README.md` — that's the up-to-date source of truth for
+"what exists and how to use it"; this file remains the *why* behind it.
+
+The most notable finding since the original research: the "CAM post-processor
+pipeline (reuse, don't reinvent)" section below undersold how much churn is
+actually happening in that part of FreeCAD right now. Filtering to a subset
+of a Job's operations — needed for the per-operation checkbox dialog — turned
+out to have **no API that works unmodified across FreeCAD versions**. Two
+different approaches, each modeled on how FreeCAD's own bundled commands do
+it, failed against the actual installed 1.1.1 CAM module (one crashed, one
+was silently a no-op) before a version-independent workaround (wrapping the
+Job in a proxy object) was found. See `postprocessing.py`'s module docstring
+and the README's "Known limitations" section for the full trace — it's a
+concrete, now-confirmed instance of the "FreeCAD API stability" risk flagged
+in the Open Questions below, not just a theoretical one.
 
 ---
 
@@ -84,8 +106,14 @@ This document captures the research done to evaluate feasibility *before* any co
 ## Open Questions / Long-Term Concerns
 
 - **FreeCAD API stability**: CAM/Path internals have already had breaking changes across versions (see FreeCAD#26006). Need a tested-version matrix and defensive coding around the toolbar-injection and post-processor APIs.
+  **Status: confirmed, not just a risk.** Hit this directly on FreeCAD 1.1.1 — see "Implementation Status" above and `postprocessing.py`. Toolbar injection was also changed from the originally-sketched runtime-hook approach to writing directly into FreeCAD's toolbar-customization parameters (the technique the Lattice2 addon uses), which doesn't depend on the target workbench having been activated first. Still no automated tested-version matrix — only 1.1.1 has been verified.
 - **Operation selection scope**: default CAM Job post-processing already combines *all* operations in a Job into one file. If we want an arbitrary subset (cross-job cherry-picking), that requires custom dialog UI beyond what CAM gives for free — decide if MVP needs this or if "one Job = one upload" is sufficient to start.
+  **Status: decided.** Single-Job, per-operation checkboxes — no cross-Job selection, to avoid mismatched Tool Controllers/units/post-processor settings across Jobs.
 - **Credential storage**: FreeCAD preferences are not encrypted at rest; needs an explicit decision on whether/how auth tokens are handled.
+  **Status: decided.** Plaintext via `ParamGet` (`freecad_prefs.py`/`config.py`), same as the rest of FreeCAD's own preferences; the preferences page shows an explicit warning. No secrets-manager/keyring integration.
 - **Testability**: FreeCAD's `FreeCAD`/`FreeCADGui`/`Path` Python modules only exist inside FreeCAD's bundled interpreter. Unit testing requires either mocking those modules or running headless FreeCAD (`freecadcmd --console`) in CI — this will need its own CI setup distinct from the Bun/Vue or `uv`/pytest conventions used elsewhere in the FluidSender ecosystem.
+  **Status: partially resolved.** The FreeCAD-free modules (`client.py`, `errors.py`, `sanitize.py`, `config.py`, `session_state.py`) have a pytest suite. Everything touching `FreeCAD`/`FreeCADGui`/`Path`/`PySide` is still only verified by running inside a real FreeCAD install by hand — no headless-FreeCAD or mocked-module CI exists yet.
 - **API contract with FluidSender**: needs to be defined jointly with [fluidSender#63](https://github.com/ahedderich/fluidSender/issues/63) — endpoint path, auth mechanism, payload format (raw GCode body vs. multipart file upload), and response/error shape. Keep it small and versioned so the two repos can evolve independently.
+  **Status: implemented against the documented contract.** `client.py` implements exactly the three endpoints in `external-api.md` (upload/list folder/create folder), including the decoupled store-then-load response shape.
 - **Repo/release lifecycle**: this addon is Python/Qt/FreeCAD — none of the Bun/Vue/Nuxt/FastAPI stack conventions from the `fluidSender` monorepo apply here. It should have its own repo, its own `package.xml` versioning, and its own CI (general security practices — no hardcoded secrets, TLS for the upload call — still apply).
+  **Status: still open.** `package.xml` exists with a placeholder license (`LGPL-2.1-or-later`) and version (`0.1.0`); this still lives inside the `fluidSender` checkout rather than its own repo, and there is no CI yet.

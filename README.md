@@ -7,9 +7,14 @@ based on, and `external-api.md` for the FluidSender upload API it talks to.
 
 ## Status
 
-Early implementation, not yet run against a real FreeCAD install (this was built in
-an environment without FreeCAD or a GUI). See "Known limitations" below before
-relying on it.
+Confirmed working end-to-end on FreeCAD 1.1.1 (macOS), as of 2026-07-19: addon
+loads, preferences page and toolbar injection register, folder browsing works,
+post-processing correctly restricts to the checked operations, and upload
+(including overwrite-by-selecting-an-existing-file) succeeds. Originally built
+in an environment without FreeCAD or a GUI, then hardened against a real
+install — see "Known limitations" below for the two real FreeCAD bugs that
+were found and worked around along the way, and for what's still unverified
+(no CI, no packaging/release process yet).
 
 ## Install (manual, for development)
 
@@ -36,7 +41,11 @@ in the workbench dropdown, which always has the command available.
    (CAM toolbar button, or the FluidSender workbench's toolbar as a fallback).
 3. In the dialog: pick the target instance, check which operations to include,
    browse/create the destination folder on the server, set a filename, and
-   optionally "load as active job", then upload.
+   optionally "load as active job", then upload. Double-click an existing file
+   in the folder listing to select it as the filename (for overwriting it).
+   The destination folder, filename, and operation checkboxes are remembered
+   for the rest of the FreeCAD session (not across restarts) so re-opening the
+   dialog to re-upload the same thing is a single click away.
 
 ## Architecture
 
@@ -71,11 +80,11 @@ tests/                               pytest suite for the FreeCAD-free modules a
 ## Development
 
 FreeCAD/FreeCADGui/Path/PySide only exist inside FreeCAD's bundled interpreter, so
-`client.py`, `errors.py`, `sanitize.py`, and `config.py` are deliberately kept free
-of those imports and are the only modules covered by the test suite here. Everything
-under `gui/`, plus `commands.py`, `postprocessing.py`, `workbench.py`,
-`toolbar_injection.py`, and `freecad_prefs.py`, can only be exercised by actually
-running inside FreeCAD (see "Known limitations").
+`client.py`, `errors.py`, `sanitize.py`, `config.py`, and `session_state.py` are
+deliberately kept free of those imports and are the only modules covered by the
+test suite here. Everything under `gui/`, plus `commands.py`, `postprocessing.py`,
+`workbench.py`, `toolbar_injection.py`, and `freecad_prefs.py`, can only be
+exercised by actually running inside FreeCAD (see "Known limitations").
 
 ```bash
 python3 -m venv .venv
@@ -89,13 +98,6 @@ mypy fluidsender_addon tests
 
 ## Known limitations / things to verify against a real FreeCAD install
 
-- **Confirmed working on FreeCAD 1.1.1 (macOS)** as of 2026-07-19: addon loads,
-  workbench/preferences/toolbar injection all register, folder browsing works,
-  and post-processing correctly restricts to the selected operations after the
-  fix below. Originally built and smoke-tested (ruff/mypy/pytest only) in a
-  sandbox without FreeCAD or a display, so this first real run surfaced two
-  real bugs in how operations were being filtered (next point) before landing
-  on a working approach.
 - **CAM post-processor API is a moving target — two approaches were tried and
   failed against a real FreeCAD 1.1.1 install before finding one that works.**
   `postprocessing.py` originally filtered to selected operations the way
