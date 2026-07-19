@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>FluidSender Upload</name>
+  <description>
+    Post-process selected CAM operations and upload the resulting GCode directly
+    to a FluidSender server, without a manual save/upload round trip.
+  </description>
+  <version>0.1.0</version>
+  <date>2026-07-19</date>
+  <maintainer email="andreas.hedderich0@gmail.com">Andreas Hedderich</maintainer>
+  <license>LGPL-2.1-or-later</license>
+  <url type="repository" branch="main">https://github.com/ahedderich/freecad-fluidsender-addon</url>
+  <url type="bugtracker">https://github.com/ahedderich/freecad-fluidsender-addon/issues</url>
+  <icon>Resources/icons/fluidsender.svg</icon>
+  <content>
+    <workbench>
+      <classname>FluidSenderWorkbench</classname>
+      <license>LGPL-2.1-or-later</license>
+      <version>0.1.0</version>
+      <description>Send CAM post-processor output to a FluidSender server</description>
+      <freecadmin>1.1.0</freecadmin>
+      <subdirectory>.</subdirectory>
+    </workbench>
+  </content>
+</package>
